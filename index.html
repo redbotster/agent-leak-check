@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Free client-side check for whether your AI agent config leaks secrets into model context.">
+<title>Agent Secret Leak Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#f6f5f7;--surface:#fff;--surface2:#f1f0f3;--line:#e5e3e9;--text:#191620;--muted:#615c6b;--faint:#8b8794;
+    --accent:#DF171A;--accent-soft:#fbe9ea;--crit:#c81e2a;--warn:#b26a00;--warn-soft:#fbf0dd;--ok:#1a8f5a;--ok-soft:#e2f6ec;
+  }
+  :root[data-theme="dark"]{--bg:#0b0a0c;--surface:#141216;--surface2:#1b181d;--line:#2a2630;--text:#f7f6f8;--muted:#a09ba9;--faint:#6f6a78;--accent:#f0474a;--accent-soft:#241417;--crit:#ff5a5f;--warn:#e0a13c;--warn-soft:#241d10;--ok:#3fcf87;--ok-soft:#0f2119;}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0b0a0c;--surface:#141216;--surface2:#1b181d;--line:#2a2630;--text:#f7f6f8;--muted:#a09ba9;--faint:#6f6a78;--accent:#f0474a;--accent-soft:#241417;--crit:#ff5a5f;--warn:#e0a13c;--warn-soft:#241d10;--ok:#3fcf87;--ok-soft:#0f2119;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Geist',system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:840px;margin:0 auto;padding:44px 22px 90px}
+  .eye{font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:8px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  h1{font-size:34px;letter-spacing:-.03em;margin:10px 0 8px;font-weight:700;text-wrap:balance}
+  .lede{font-size:17px;color:var(--muted);margin:0 0 8px;max-width:64ch}
+  .priv{font-size:13px;color:var(--faint);margin:0 0 22px;display:flex;align-items:center;gap:7px}
+  .priv b{color:var(--ok)}
+  textarea{width:100%;min-height:230px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;font-family:'Geist Mono',monospace;font-size:13px;line-height:1.55;color:var(--text);resize:vertical;tab-size:2}
+  textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  button{font-family:inherit;cursor:pointer}
+  .scan{padding:12px 24px;font-size:15px;font-weight:600;background:var(--accent);border:none;border-radius:10px;color:#fff}
+  .ghost{padding:12px 16px;font-size:14px;background:transparent;border:1px solid var(--line);border-radius:10px;color:var(--text)}
+  .ex{font-size:13px;color:var(--accent);background:none;border:none;padding:0;text-decoration:underline;text-underline-offset:2px}
+  #out{margin-top:26px}
+  .score{display:flex;align-items:center;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px}
+  .score .n{font-family:'Geist Mono',monospace;font-size:40px;font-weight:600;line-height:1}
+  .score .lbl{font-size:14px;color:var(--muted)}
+  .finding{background:var(--surface);border:1px solid var(--line);border-left-width:3px;border-radius:12px;padding:14px 16px;margin-bottom:10px}
+  .finding.crit{border-left-color:var(--crit)}
+  .finding.warn{border-left-color:var(--warn)}
+  .sev{display:inline-block;font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;font-weight:600}
+  .sev.crit{background:var(--accent-soft);color:var(--crit)}
+  .sev.warn{background:var(--warn-soft);color:var(--warn)}
+  .finding h3{font-size:15px;margin:8px 0 4px;font-weight:600}
+  .finding p{font-size:14px;color:var(--muted);margin:4px 0}
+  .finding code{font-family:'Geist Mono',monospace;font-size:12.5px;background:var(--surface2);border:1px solid var(--line);border-radius:5px;padding:.06em .38em;word-break:break-all}
+  .clean{background:var(--ok-soft);border:1px solid var(--line);border-radius:14px;padding:20px;text-align:center}
+  .clean h3{margin:0 0 4px;color:var(--ok)}
+  .cta{margin-top:26px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .cta h2{font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
+  .cta p{color:var(--muted);font-size:14.5px;margin:6px 0 14px}
+  .cta a{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:10px 18px;border-radius:9px}
+  .cta a.ghost2{background:transparent;color:var(--accent);border:1px solid var(--line);margin-left:8px}
+  footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+  footer a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <div class="eye"><span class="dot"></span> 1Claw · free tool</div>
+  <h1>Does your agent leak secrets?</h1>
+  <p class="lede">Paste an agent config, MCP server block, or the snippet that wires up your keys. This flags the ways a secret can end up in model context, a transcript, or a log — the class of bug that bit Hermes, LangChain, and others.</p>
+  <p class="priv">🔒 <b>Runs entirely in your browser.</b> Nothing is uploaded, logged, or sent anywhere. View source and confirm.</p>
+
+  <textarea id="in" placeholder="Paste config.yaml, an MCP servers block, .env-referencing config, or the code that loads your keys…"></textarea>
+  <div class="row">
+    <button class="scan" onclick="run()">Check for leaks</button>
+    <button class="ghost" onclick="document.getElementById('in').value='';document.getElementById('out').innerHTML=''">Clear</button>
+    <button class="ex" onclick="loadExample()">load an example</button>
+  </div>
+
+  <div id="out"></div>
+
+  <footer>
+    Heuristic scan — it catches common exposure patterns, not everything, and it can't see your runtime. No substitute for a real secrets review.
+    Built by the team at <a href="https://1claw.xyz?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">1Claw</a>.
+  </footer>
+</div>
+
+<script>
+const EXAMPLE = `# config.yaml (redact_secrets: true)
+security:
+  redact_secrets: true
+mcp_servers:
+  market:
+    url: "https://api.example.com/mcp?apikey=\${FMP_API_KEY}"
+  coingecko:
+    command: mcp-coingecko
+    env:
+      COINGECKO_PRO_API_KEY: "\${COINGECKO_PRO_API_KEY}"
+  internal:
+    url: "https://tools.acme.dev/mcp"
+    headers:
+      Authorization: "Bearer sk-live-9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c"
+model:
+  api_key: "\${OPENAI_API_KEY}"
+system_prompt: "You are helpful. The admin key is AKIA1234567890ABCDEF for emergencies."`;
+
+function loadExample(){ document.getElementById('in').value = EXAMPLE; run(); }
+
+function esc(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// Detectors: each returns findings [{sev, title, detail, hit}]
+function scan(text){
+  const F = [];
+  const lines = text.split(/\\r?\\n/);
+  const add = (sev,title,detail,hit)=>F.push({sev,title,detail,hit:hit||''});
+
+  // 1. hardcoded secret literals (real key shapes)
+  const KEY = [
+    [/\\bsk-[A-Za-z0-9_-]{16,}/g,'OpenAI-style key'],
+    [/\\bsk-ant-[A-Za-z0-9_-]{16,}/g,'Anthropic key'],
+    [/\\bghp_[A-Za-z0-9]{20,}/g,'GitHub token'],
+    [/\\bgithub_pat_[A-Za-z0-9_]{20,}/g,'GitHub fine-grained token'],
+    [/\\bAKIA[0-9A-Z]{16}\\b/g,'AWS access key id'],
+    [/\\bxox[baprs]-[A-Za-z0-9-]{10,}/g,'Slack token'],
+    [/\\bAIza[0-9A-Za-z_-]{20,}/g,'Google API key'],
+    [/\\bglpat-[A-Za-z0-9_-]{16,}/g,'GitLab token'],
+    [/\\bBearer\\s+[A-Za-z0-9._-]{20,}/g,'inline Bearer token'],
+    [/-----BEGIN [A-Z ]*PRIVATE KEY-----/g,'private key block'],
+  ];
+  const seen = new Set();
+  for (const [re,label] of KEY){
+    let m; while((m=re.exec(text))){
+      const v=m[0]; if(seen.has(v))continue; seen.add(v);
+      add('crit', 'Hardcoded '+label,
+        'A real credential is written directly into the config/code. Anyone who reads the file, the repo, or a leaked build has it, and it flows into model context whenever this file is read.',
+        v.slice(0,10)+'…'+v.slice(-4));
+    }
+  }
+
+  // 2. env-interpolated secrets resolvable into context ( ${VAR} in credential-ish spots )
+  const envRefs = [...text.matchAll(/\\$\\{?([A-Z][A-Z0-9_]{2,})\\}?/g)].map(m=>m[1]);
+  const credEnv = [...new Set(envRefs)].filter(v=>/KEY|TOKEN|SECRET|PASS|CRED|AUTH|BEARER|APIKEY/.test(v));
+  if (credEnv.length){
+    add('warn','Env-interpolated secrets ('+credEnv.length+')',
+      'Refs like ${'+credEnv[0]+'} are the right way to STORE a secret, but many agent CLIs resolve them to the real value on `config get`, `mcp list`, or when the terminal tool reads the file — dropping the plaintext into model context and the session transcript. Storing it safely is not the same as keeping it out of context.',
+      credEnv.slice(0,6).map(v=>'${'+v+'}').join('  '));
+  }
+
+  // 3. credentials embedded in URL query / userinfo
+  const urlCred = [...text.matchAll(/https?:\\/\\/[^\\s"']*(?:[?&](?:api[_-]?key|apikey|token|access[_-]?token|key|secret)=[^\\s"'&]+|[^\\s"'/@]+:[^\\s"'/@]+@)/gi)].map(m=>m[0]);
+  for (const u of [...new Set(urlCred)].slice(0,4)){
+    add('crit','Credential in a URL',
+      'The secret lives in the URL itself, so it leaks anywhere the URL is printed, logged, or echoed by a tool — even redaction that only masks known keys often misses these.',
+      u.slice(0,52)+(u.length>52?'…':''));
+  }
+
+  // 4. secrets sitting inside prompt / system fields
+  for (let i=0;i<lines.length;i++){
+    const l=lines[i];
+    if(/(system|prompt|instruction|persona)/i.test(l) || /(system|prompt)/i.test(lines[i-1]||'')){
+      if(/\\bsk-|\\bghp_|\\bAKIA|Bearer\\s+[A-Za-z0-9]{16,}|[A-Z0-9]{20,}/.test(l) && /(key|token|secret|password|credential)/i.test(l)){
+        add('crit','Secret inside a prompt',
+          'A credential is written into a prompt/system field. Prompts are model context by definition — this secret is handed to the model on every call and often persisted in traces.',
+          l.trim().slice(0,60));
+      }
+    }
+  }
+
+  // 5. redact_secrets present but env still resolvable (the false-safety trap)
+  if(/redact_secrets:\\s*true/i.test(text) && credEnv.length){
+    add('warn','`redact_secrets: true` is not enough here',
+      'You have redaction on, but env-interpolated secrets can still be resolved into context by diagnostic commands and the terminal tool (exactly the Hermes config-get bug). Redaction that runs after interpolation, or a broker that never exposes the raw value, is what actually closes this.','');
+  }
+  return F;
+}
+
+function run(){
+  const text = document.getElementById('in').value;
+  const out = document.getElementById('out');
+  if(!text.trim()){ out.innerHTML=''; return; }
+  const F = scan(text);
+  const crit = F.filter(f=>f.sev==='crit').length, warn = F.filter(f=>f.sev==='warn').length;
+  let html='';
+  const risk = crit? 'At risk' : warn? 'Exposed' : 'Looks clean';
+  const color = crit? 'var(--crit)' : warn? 'var(--warn)' : 'var(--ok)';
+  html += `<div class="score"><div class="n" style="color:${color}">${F.length}</div><div><div style="font-weight:600">${risk}</div><div class="lbl">${crit} critical · ${warn} to review · scanned locally</div></div></div>`;
+  if(!F.length){
+    html += `<div class="clean"><h3>No obvious secret exposure found</h3><p style="color:var(--muted);margin:6px 0 0">This heuristic didn't spot hardcoded keys, URL creds, or secrets in prompts. It can't see your runtime, so keep secrets out of context by design.</p></div>`;
+  } else {
+    for(const f of F){
+      html += `<div class="finding ${f.sev}"><span class="sev ${f.sev}">${f.sev==='crit'?'critical':'review'}</span><h3>${esc(f.title)}</h3><p>${esc(f.detail)}</p>${f.hit?`<p><code>${esc(f.hit)}</code></p>`:''}</div>`;
+    }
+  }
+  html += `<div class="cta"><h2>Keep secrets out of context, not just out of git</h2><p>Every finding above comes from the same root cause: the agent can reach the raw secret. 1Claw brokers credentials so your agent gets a short-lived, scoped, policy-gated token instead of the real key. There is no plaintext secret to leak into context, a transcript, or a log.</p><a href="https://1claw.xyz?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">See how it works</a><a class="ghost2" href="https://docs.1claw.xyz?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">Read the docs</a></div>`;
+  out.innerHTML = html;
+}
+</script>
+
+</body>
+</html>
