@@ -75,7 +75,7 @@
 
   <footer>
     Heuristic scan — it catches common exposure patterns, not everything, and it can't see your runtime. No substitute for a real secrets review.
-    Built by the team at <a href="https://1claw.xyz?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">1Claw</a>.
+    Built by the team at <a href="https://1claw.co?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">1Claw</a>.
   </footer>
 </div>
 
@@ -185,7 +185,7 @@ function run(){
       html += `<div class="finding ${f.sev}"><span class="sev ${f.sev}">${f.sev==='crit'?'critical':'review'}</span><h3>${esc(f.title)}</h3><p>${esc(f.detail)}</p>${f.hit?`<p><code>${esc(f.hit)}</code></p>`:''}</div>`;
     }
   }
-  html += `<div class="cta"><h2>Keep secrets out of context, not just out of git</h2><p>Every finding above comes from the same root cause: the agent can reach the raw secret. 1Claw brokers credentials so your agent gets a short-lived, scoped, policy-gated token instead of the real key. There is no plaintext secret to leak into context, a transcript, or a log.</p><a href="https://1claw.xyz?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">See how it works</a><a class="ghost2" href="https://docs.1claw.xyz?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">Read the docs</a></div>`;
+  html += `<div class="cta"><h2>Keep secrets out of context, not just out of git</h2><p>Every finding above comes from the same root cause: the agent can reach the raw secret. 1Claw brokers credentials so your agent gets a short-lived, scoped, policy-gated token instead of the real key. There is no plaintext secret to leak into context, a transcript, or a log.</p><a href="https://1claw.co/security?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">See how it works</a><a class="ghost2" href="https://docs.1claw.co?utm_source=leakcheck&utm_medium=tool&utm_campaign=growth">Read the docs</a></div>`;
   out.innerHTML = html;
 }
 </script>
